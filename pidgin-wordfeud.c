@@ -83,6 +83,10 @@ static void wf_games_cb(WordfeudAccount *wfa, const gchar *status, JsonObject *c
 	{
 		JsonObject *game = json_array_get_object_element(games, i);
 		gint game_id = (gint) json_object_get_int_member(game, "id");
+		gchar *game_id_str = g_strdup_printf("%d", game_id);
+		
+		PurpleConversation *conv = serv_got_joined_chat(wfa->pc, game_id, game_id_str);
+		PurpleConvChat *chat = purple_conversation_get_chat_data(conv);
 		
 		const gchar *other_player = " ";
 		JsonArray *players = json_object_get_array_member(game, "players");
@@ -97,21 +101,23 @@ static void wf_games_cb(WordfeudAccount *wfa, const gchar *status, JsonObject *c
 			{
 				other_player = json_object_get_string_member(player, "username");
 				purple_debug_info("wordfeud", "Other user %s\n", other_player);
-				break;
 			}
+			
+			purple_conv_chat_add_user(chat, json_object_get_string_member(player, "username"), NULL, PURPLE_CBFLAGS_NONE, FALSE);
 		}
 		
 		purple_debug_info("wordfeud", "New game: %d %s\n", game_id, other_player);
 		
-		gchar *game_id_str = g_strdup_printf("%d", game_id);
 		/*GHashTable *components = g_hash_table_new(g_str_hash, g_str_equal);
 		g_hash_table_insert(components, "game_id", game_id_str);
 		PurpleChat *chat = purple_chat_new(wfa->account, other_player, components);
-		g_free(game_id_str);
+		
 		
 		purple_blist_add_chat(chat, purple_find_group("Wordfeud"), NULL);*/
 		
-		serv_got_joined_chat(wfa->pc, game_id, game_id_str);
+		wf_get_chat_history(wfa, game_id);
+		
+		g_free(game_id_str);
 	}
 }
 
@@ -153,6 +159,25 @@ static void wf_notifications_cb(WordfeudAccount *wfa, const gchar *status, JsonO
 			const gchar *message = json_object_get_string_member(entry, "message");
 	
 			serv_got_chat_in(wfa->pc, game_id, username, PURPLE_MESSAGE_RECV, message, time(NULL));
+		} else if (g_str_equal(entry_type, "move"))
+		{
+			const gchar *username = json_object_get_string_member(entry, "username");
+			const gchar *game_id_str = json_object_get_string_member(entry, "game_id");
+			guint game_id = atoi(game_id_str);
+			const gchar *main_word = json_object_get_string_member(entry, "main_word");
+			guint points = (gint) json_object_get_int_member(entry, "points");
+			
+			gchar *message = g_strdup_printf("/me played %s for %d points", main_word, points);
+			serv_got_chat_in(wfa->pc, game_id, username, PURPLE_MESSAGE_RECV, message, time(NULL));
+			g_free(message);
+		} else if (g_str_equal(entry_type, "invite_received"))
+		{
+			const gchar *username = json_object_get_string_member(entry, "username");
+			const gchar *user_id = json_object_get_string_member(entry, "user_id");
+			
+			//TODO popup a notice to the user
+			
+			purple_debug_info("wordfeudt", "Received game invite from %s %d\n", username, user_id);
 		} else {
 			purple_debug_warning("wordfeud", "Unknown notification type '%s'\n", entry_type);
 		}
