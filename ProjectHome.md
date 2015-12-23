@@ -1,0 +1,1 @@
+A wordfeud plugin for Pidgin.  Attempts to bring through chat messages and friends lists from the popular online word-game, Wordfeud
